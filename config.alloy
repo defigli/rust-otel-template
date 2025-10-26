@@ -1,0 +1,38 @@
+otelcol.receiver.otlp "default" {
+  http {}
+  grpc {}
+  output {
+    logs = [otelcol.processor.batch.default.input]
+    metrics = [otelcol.processor.batch.default.input]
+    traces = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  output {
+    logs = [otelcol.exporter.otlphttp.loki.input]
+    // Send all incoming OTLP metrics to the Prometheus exporter. Prometheus will SCRAPE
+    // the exposition endpoint (pull model) instead of us pushing via remote_write.
+    metrics = [otelcol.exporter.prometheus.convert.input]
+    traces = [otelcol.exporter.otlphttp.tempo.input]
+  }
+}
+
+otelcol.exporter.otlphttp "loki" {
+  client { endpoint = "http://loki:3100/otlp" }
+}
+
+otelcol.exporter.otlphttp "tempo" {
+  // Endpoint should be the base URL only; the exporter appends /v1/traces automatically.
+  client { endpoint = "http://tempo:4318" }
+}
+
+otelcol.exporter.prometheus "convert" {
+  forward_to = [prometheus.remote_write.metrics_service.receiver]
+}
+
+prometheus.remote_write "metrics_service" {
+    endpoint {
+        url = "http://prometheus:9090/api/v1/write"
+    }
+}
