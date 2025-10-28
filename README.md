@@ -4,15 +4,13 @@
 ![Security Audit](https://github.com/defigli/rust-otel-template/actions/workflows/security-audit.yml/badge.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-[🔎 View latest security audit report (HTML)](https://defigli.github.io/rust-otel-template/audit.html)
-
-A comprehensive Rust project template featuring logging, telemetry, OpenTelemetry metrics, and async runtime with Tokio.
+A comprehensive Rust project template featuring logging, telemetry, OpenTelemetry metrics (opt-in), and async runtime with Tokio.
 
 ## Features
 
 - **Console Logging**: Structured logging to console using `tracing`
 - **HTTP Telemetry**: Distributed tracing via OpenTelemetry OTLP over HTTP
-- **Metrics**: OpenTelemetry metrics exported via HTTP
+- **Metrics (opt-in)**: OpenTelemetry metrics (enable the `metrics` feature to export metrics)
 - **Async Runtime**: Powered by Tokio for high-performance async operations
 
 ## Dependencies
@@ -22,7 +20,7 @@ A comprehensive Rust project template featuring logging, telemetry, OpenTelemetr
 - `tracing-subscriber` - Log formatting and filtering (optional feature `console-log`)
 - `tracing-opentelemetry` - OpenTelemetry integration for traces
 - `opentelemetry` - OpenTelemetry SDK (trace-only by default)
-- `opentelemetry-otlp` - OTLP exporter for traces (+ logs when `otlp-log` feature enabled). Uses the blocking HTTP client via `reqwest-blocking-client` to avoid reactor panics during shutdown; no direct `reqwest` usage in app code.
+- `opentelemetry-otlp` - OTLP exporter for traces (+ logs when `otlp-log` feature enabled). Uses the blocking HTTP client via `reqwest-blocking-client` to avoid reactor panics during shutdown; this ensures batch processors can flush on their own worker threads during shutdown.
 - `anyhow` - Error handling
 
 ## Quick Start
@@ -83,9 +81,9 @@ cargo run --no-default-features --features console-log,otlp-log
 | Alloy     | Unified OTLP ingest & pipeline | 12345 |
 | Alloy     | OTLP HTTP endpoint             | 4318  |
 | Tempo     | OTLP HTTP endpoint (direct)    | 43180 |
+| Tempo     | Query / HTTP API (traces UI)   | 3200  |
 | Loki      | Log storage                    | 3100  |
 | Grafana   | UI                             | 3000  |
-
 
 Run the app pointing at Alloy (recommended):
 
@@ -102,11 +100,9 @@ cargo run
 ```
 
 Alloy routing (see `config.alloy`):
-
 - Logs -> Loki (`http://loki:3100/otlp`)
 - Traces -> Tempo (`http://tempo:4318` base, exporter appends /v1/traces)
 - Metrics -> Prometheus remote write
-
 
 ### Viewing Logs in Grafana / Loki
 
@@ -123,11 +119,9 @@ Alloy routing (see `config.alloy`):
 - Increase verbosity: `RUST_LOG=opentelemetry=debug,info OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 cargo run`.
 - Connectivity probe: `curl -v http://localhost:4318/v1/logs` (expect 405/404 if method without body; reaching Alloy is key).
 
-
 ### Viewing Traces (Tempo)
 
-Add Tempo datasource (URL `http://tempo:3200`). Use Explore → Trace Search with service name or span name once traces arrive. (Future enhancement: inject trace/span IDs into console JSON.)
-
+Add Tempo datasource (URL `http://tempo:3200`) or the Tempo query API URL used in your docker compose. Use Explore → Trace Search with service name or span name once traces arrive. (Future enhancement: inject trace/span IDs into console JSON.)
 
 ### Environment Variables Summary
 
@@ -140,7 +134,6 @@ Add Tempo datasource (URL `http://tempo:3200`). Use Explore → Trace Search wit
 | OTEL_EXPORTER_OTLP_TRACES_ENDPOINT | Override traces endpoint                          | unset                    |
 | OTEL_EXPORTER_OTLP_LOGS_ENDPOINT | Override logs endpoint                              | unset                    |
 | LOG_FORMAT                       | (Deprecated, removed) previously toggled JSON; now use cargo feature | n/a |
-
 
 ### Loki Label Mapping
 
@@ -156,7 +149,7 @@ Use Grafana Explore label browser to confirm actual naming.
 
 The application uses the following default configuration:
 
-- **Service Name**: `rust-spike`
+- **Service Name**: `rust-otel-template`
 - **Service Version**: `0.1.0`
 - **OTLP Endpoint**: `http://localhost:4318`
 
@@ -183,7 +176,7 @@ The application uses structured logging with different levels:
 
 ## Metrics
 
-The application exports the following metrics:
+The application exports the following metrics (if you enable metrics instrumentation / feature):
 
 - `requests_total`: Counter for total requests processed
 - `request_duration_seconds`: Histogram of request processing duration
@@ -230,9 +223,9 @@ Extend the `AppConfig` struct to add environment variable support:
 impl AppConfig {
     fn from_env() -> Self {
         Self {
-            service_name: std::env::var("SERVICE_NAME")
-                .unwrap_or_else(|_| "rust-spike".to_string()),
-            otlp_endpoint: std::env::var("OTLP_ENDPOINT")
+            service_name: std::env::var("OTEL_SERVICE_NAME")
+                .unwrap_or_else(|_| "rust-otel-template".to_string()),
+            otlp_endpoint: std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT")
                 .unwrap_or_else(|_| "http://localhost:4318".to_string()),
             // ... other fields
         }
@@ -254,9 +247,10 @@ impl AppConfig {
 - Include trace & span IDs in console JSON output for easier correlation.
 - Structured error logging with span status set to error.
 - Graceful shutdown improvements: ensure batch processors flush within timeout.
+
 ### Shutdown Notes
 
-Telemetry is initialized and shutdown inside the Tokio runtime (`#[tokio::main]`). The batch processors use a blocking HTTP client to ensure final flushes succeed in their worker threads without needing an active async reactor. If you switch to the async `reqwest-client` feature, ensure shutdown occurs before the runtime exits and consider replacing batch exporters with simple exporters or spawning a dedicated runtime.
+Telemetry is initialized and shutdown inside the Tokio runtime (`#[tokio::main]`). The batch processors use a blocking HTTP client to ensure final flushes succeed in their worker threads without depending on the Tokio reactor; ensure your runtime awaits shutdown so processors can complete their flush interval.
 
 ## License
 
