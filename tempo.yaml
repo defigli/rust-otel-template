@@ -1,0 +1,43 @@
+auth_enabled: false
+multitenancy_enabled: false
+
+server:
+  http_listen_port: 3200
+  grpc_listen_port: 9095
+
+# Enable OTLP receivers so Tempo actually listens on 4317 (gRPC) and 4318 (HTTP).
+# Explicitly set endpoints to avoid relying on defaults (some image versions changed behavior).
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        http:
+          endpoint: 0.0.0.0:4318
+        grpc:
+          endpoint: 0.0.0.0:4317
+
+ingester:
+  # Small demo-friendly limits
+  trace_idle_period: 10s
+  max_block_bytes: 1_000_000
+  max_block_duration: 5m
+
+compactor:
+  compaction:
+    # Retain demo data for an hour (adjust as needed)
+    block_retention: 1h
+
+querier:
+  frontend_worker:
+    frontend_address: 127.0.0.1:9095
+
+query_frontend:
+  max_outstanding_per_tenant: 200
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo
+    wal:
+      path: /var/tempo/wal

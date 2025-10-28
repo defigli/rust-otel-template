@@ -1,0 +1,49 @@
+[package]
+name = "rust-otel-template"
+version = "0.1.0"
+edition = "2021"
+
+license = "MIT"
+
+
+
+
+[dependencies]
+# Core tracing & OTLP trace export always available (minimal features only for traces by default)
+opentelemetry = { version = "0.31", default-features = false, features = ["trace"] }
+opentelemetry_sdk = { version = "0.31", default-features = false, features = ["rt-tokio", "trace"] }
+opentelemetry-otlp = { version = "0.31.0", default-features = false, features = ["trace", "http-proto", "reqwest-blocking-client"] }
+tracing = "0.1"
+tracing-opentelemetry = "0.32"
+tokio = { version = "1.37", features = ["full"] }
+anyhow = "1.0"
+
+# Console formatting (only active with feature `console-log`)
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Log exporter / tracing bridge (only pulled in with feature `otlp-log`)
+opentelemetry-appender-tracing = { version = "0.31.1", optional = true }
+[features]
+# No default logging; only traces exported.
+default = []
+
+# Enable console logging layer & formatting.
+console-log = []
+
+# Enable OTLP log export & tracing bridge; also turns on log support in OpenTelemetry crates.
+otlp-log = [
+	"opentelemetry/logs",
+	"opentelemetry_sdk/logs",
+	"opentelemetry-otlp/logs",
+	"dep:opentelemetry-appender-tracing"
+]
+
+# (Future) metrics feature could add: opentelemetry/metrics, opentelemetry_sdk/metrics, opentelemetry-otlp/metrics
+metrics = [
+	"opentelemetry/metrics",
+	"opentelemetry_sdk/metrics",
+	"opentelemetry-otlp/metrics"
+]
+
+[dev-dependencies]
+tokio-test = "0.4"
