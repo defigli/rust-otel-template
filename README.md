@@ -4,6 +4,8 @@
 ![Security Audit](https://github.com/defigli/rust-otel-template/actions/workflows/security-audit.yml/badge.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
+[🔎 View latest security audit report (HTML)](https://defigli.github.io/rust-otel-template/audit.html)
+
 A comprehensive Rust project template featuring logging, telemetry, OpenTelemetry metrics (opt-in), and async runtime with Tokio.
 
 ## Features
